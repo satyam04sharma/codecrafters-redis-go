@@ -19,7 +19,7 @@ func main() {
 	}
 	// defer l.close()
 
-	_, err := l.Accept()
+	conn, err := l.Accept()
 	if err != nil {
 		fmt.Println("Error accepting connection: ", err.Error())
 		os.Exit(1)
