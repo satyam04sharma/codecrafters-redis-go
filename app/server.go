@@ -27,7 +27,6 @@ func main() {
 			}
 			go handleConnection(connection)
 		}
-	}
 	func handleConnection(connection net.Conn) {
 		buff := make([]byte, 1024)
 		_, err := connection.Read(buff)
@@ -40,7 +39,7 @@ func main() {
 		PING = "*1\r\n$4\r\nping\r\n"
 	)
 	var response string
-	// data := string(buff)
+	data := string(buff)
 	response = "+PONG\r\n"
 	connection.Write([]byte(response))
 }
