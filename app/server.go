@@ -5,6 +5,8 @@ import (
 	// Uncomment this block to pass the first stage
 	"net"
 	"os"
+	"errors"
+	"io"
 )
 
 func main() {
