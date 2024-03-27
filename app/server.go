@@ -31,26 +31,21 @@ func main() {
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
 		go Handle(conn)
 	}
-	func Handle(conn net.Conn) {
-		for {
-			buf := make([]byte, 1024)
-			_, err := conn.Read(buf[:])
-			if errors.Is(err, io.EOF) {
-				break
-			}
-			if err != nil {
-				fmt.Println("Error accepting connection: ", err.Error())
-				os.Exit(1)
-			}
-			fmt.Println("")
-			conn.Write([]byte("+PONG\r\n"))
+}
+func Handle(conn net.Conn) {
+	defer conn.Close()
+
+	for {
+		buf := make([]byte, 1024)
+		_, err := conn.Read(buf[:])
+		if errors.Is(err, io.EOF) {
+			break
 		}
-
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		fmt.Println("")
+		conn.Write([]byte("+PONG\r\n"))
 	}
-	// if err != nil {
-	// 	fmt.Println("Error accepting connection: ", err.Error())
-	// 	os.Exit(1)
-	// }
-	
-
 }
