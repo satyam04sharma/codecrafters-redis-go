@@ -18,8 +18,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer l.close()
-	for
-		{
+	for{
 			connection,err := listener.Accept()
 			if err != nil {
 				fmt.Println("Error accepting connection: ", err.Error())
@@ -34,12 +33,12 @@ func main() {
 			fmt.Println("Error:", err)
 			return
 		}
+		const (
+			PING = "*1\r\n$4\r\nping\r\n"
+		)
+		var response string
+		data := string(buff)
+		response = "+PONG\r\n"
+		connection.Write([]byte(response))
 	}
-	const (
-		PING = "*1\r\n$4\r\nping\r\n"
-	)
-	var response string
-	data := string(buff)
-	response = "+PONG\r\n"
-	connection.Write([]byte(response))
 }
