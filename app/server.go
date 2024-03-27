@@ -18,28 +18,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer l.close()
-	for{
-			connection,err := l.Accept()
-			if err != nil {
-				fmt.Println("Error accepting connection: ", err.Error())
-				os.Exit(1)
-			}
-			go handleConnection(connection)
-		}
-		func handleConnection(connection net.Conn) {
-			buff := make([]byte, 1024)
-			_, err := connection.Read(buff)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
-			}
-			const (
-				PING = "*1\r\n$4\r\nping\r\n"
-			)
-			var response string
-			// data := string(buff)
-			response = "+PONG\r\n"
-			connection.Write([]byte(response))
-		}
-	
+
+	_, err := l.Accept()
+	if err != nil {
+		fmt.Println("Error accepting connection: ", err.Error())
+		os.Exit(1)
+	}
+	fmt.Fprintf(conn, "+PONG\r\n")
+
 }
