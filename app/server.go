@@ -32,8 +32,8 @@ func main() {
 		go Handle(conn)
 	}
 	func Handle(conn net.Conn) {
-		var buf [1024]byte
 		for {
+			buf := make([]byte, 1024)
 			_, err := conn.Read(buf[:])
 			if errors.Is(err, io.EOF) {
 				break
