@@ -24,16 +24,17 @@ func main() {
 
 	// conn, err := l.Accept()
 	// Adding Support for multiple clients
+	var store = make(map[string]string)
 	for { 
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go Handle(conn)
+		go Handle(conn, store)
 	}
 }
-func Handle(conn net.Conn) {
+func Handle(conn net.Conn, store map[string]string) {
 	defer conn.Close()
 	var res string
 	for {
