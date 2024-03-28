@@ -50,9 +50,9 @@ func Handle(conn net.Conn) {
 		parts := strings.Split(string(buf), "\r\n")
 		cmd := strings.ToLower(parts[2])
 		if cmd == "ping" {
-		switch cmd {
-		case "ping":
-			res = "+PONG\r\n"
+			switch cmd {
+				case "ping":
+					res = "+PONG\r\n"}
 		} else if cmd == "echo" {
 		case "echo":
 			res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
@@ -67,7 +67,6 @@ func Handle(conn net.Conn) {
 
 		conn.Write([]byte(res))	}
 	}
-}
 func handleSet(k, v string, m map[string]string) string {
 	m[k] = v
 	return "+OK\r\n"
