@@ -34,7 +34,7 @@ func main() {
 }
 func Handle(conn net.Conn) {
 	defer conn.Close()
-
+	var res string
 	for {
 		buf := make([]byte, 1024)
 		_, err := conn.Read(buf[:])
@@ -45,7 +45,15 @@ func Handle(conn net.Conn) {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("")
-		conn.Write([]byte("+PONG\r\n"))
-	}
+		fmt.Println(buf)
+		parts := strings.Split(string(buf), "\r\n")
+		cmd := strings.ToLower(parts[2])
+		if cmd == "ping" {
+			res = "+PONG\r\n"
+		} else if cmd == "echo" {
+			res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
+		} else {
+			res = "Unknown command: " + cmd
+		}
+		conn.Write([]byte(res))	}
 }
