@@ -46,15 +46,36 @@ func Handle(conn net.Conn) {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
-		fmt.Println(buf)
+		fmt.Println(string(buf))
 		parts := strings.Split(string(buf), "\r\n")
 		cmd := strings.ToLower(parts[2])
 		if cmd == "ping" {
+		switch cmd {
+		case "ping":
 			res = "+PONG\r\n"
 		} else if cmd == "echo" {
+		case "echo":
 			res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
 		} else {
-			res = "Unknown command: " + cmd
+			case "set":
+				res = handleSet(parts[4], parts[6], store)
+			case "get":
+				res, _ = handleGet(parts[4], store)
+			default:
+				res = "Unknown command: " + cmd
 		}
+
 		conn.Write([]byte(res))	}
+	}
+}
+func handleSet(k, v string, m map[string]string) string {
+	m[k] = v
+	return "+OK\r\n"
+}
+func handleGet(k string, m map[string]string) (string, error) {
+	v, ok := m[k]
+	if !ok {
+		return "$-1\r\n", fmt.Errorf("unknown key: %s", k)
+	}
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(v), v), nil
 }
