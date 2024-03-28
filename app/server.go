@@ -49,14 +49,11 @@ func Handle(conn net.Conn) {
 		fmt.Println(string(buf))
 		parts := strings.Split(string(buf), "\r\n")
 		cmd := strings.ToLower(parts[2])
-		if cmd == "ping" {
-			switch cmd {
-				case "ping":
-					res = "+PONG\r\n"}
-		} else if cmd == "echo" {
-		case "echo":
-			res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
-		} else {
+		switch cmd {
+			case "ping":
+				res = "+PONG\r\n"
+			case "echo":
+				res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
 			case "set":
 				res = handleSet(parts[4], parts[6], store)
 			case "get":
