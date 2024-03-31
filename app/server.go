@@ -39,7 +39,6 @@ func main() {
 		go handleConnection(conn, &store, &expirations, &mutex)
 	}
 }
-
 func handleConnection(conn net.Conn, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
@@ -76,7 +75,11 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		case "set":
 			response = handleSet(args, store, expirations, mutex)
 		case "get":
-			response = handleGet(args[0], store, expirations, mutex)
+			if len(args) > 0 {
+				response = handleGet(args[0], store, expirations, mutex)
+			} else {
+				response = "$-1\r\n"
+			}
 		default:
 			response = "$-1\r\n"
 		}
@@ -84,6 +87,7 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		conn.Write([]byte(response))
 	}
 }
+
 
 func handleSet(parts []string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) string {
 	mutex.Lock()
