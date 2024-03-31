@@ -74,25 +74,13 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		case "ping":
 			response = "+PONG\r\n"
 		case "echo":
-			if len(args) < 1 {
-				response = "-ERR wrong number of arguments for 'echo' command\r\n"
-			} else {
 				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
-			}
 		case "set":
-			if len(args) < 2 {
-				response = "-ERR wrong number of arguments for 'set' command\r\n"
-			} else {
-				response = handleSet(args, store, expirations, mutex)
-			}
+			response = handleSet(args, store, expirations, mutex)
 		case "get":
-			if len(args) < 1 {
-				response = "-ERR wrong number of arguments for 'get' command\r\n"
-			} else {
 				response, _ = handleGet(args[0], store, expirations, mutex)
-			}
 		default:
-			response = "-ERR unknown command '" + cmd + "'\r\n"
+			response = "$-1\r\n"
 		}
 
 		conn.Write([]byte(response))
@@ -127,12 +115,12 @@ func handleGet(key string, store *map[string]string, expirations *map[string]tim
 	if expiration, ok := (*expirations)[key]; ok && time.Now().After(expiration) {
 		delete(*store, key)
 		delete(*expirations, key)
-		return "$-1\r\n", fmt.Errorf("key expired: %s", key)
+		return "$-1\r\n"
 	}
 
 	value, ok := (*store)[key]
 	if !ok {
-		return "$-1\r\n", fmt.Errorf("unknown key: %s", key)
+		return "$-1\r\n"
 	}
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value), nil
 }
