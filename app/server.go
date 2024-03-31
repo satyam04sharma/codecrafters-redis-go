@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,10 @@ func main() {
 
 	var store = make(map[string]string)
 	var expirations = make(map[string]time.Time)
+	var mutex sync.Mutex
+
+	// Start a goroutine to handle expiration
+	go handleExpiration(&store, &expirations, &mutex)
 
 	for {
 		conn, err := l.Accept()
@@ -31,11 +36,11 @@ func main() {
 			continue
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go handleConnection(conn, store, expirations)
+		go handleConnection(conn, &store, &expirations, &mutex)
 	}
 }
 
-func handleConnection(conn net.Conn, store map[string]string, expirations map[string]time.Time) {
+func handleConnection(conn net.Conn, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
 		buf := make([]byte, 1024)
@@ -62,13 +67,13 @@ func handleConnection(conn net.Conn, store map[string]string, expirations map[st
 			if len(parts) < 7 {
 				response = "-ERR wrong number of arguments for 'set' command\r\n"
 			} else {
-				response = handleSet(parts, store, expirations)
+				response = handleSet(parts, store, expirations, mutex)
 			}
 		case "get":
 			if len(parts) < 5 {
 				response = "-ERR wrong number of arguments for 'get' command\r\n"
 			} else {
-				response, _ = handleGet(parts[4], store, expirations)
+				response, _ = handleGet(parts[4], store, expirations, mutex)
 			}
 		default:
 			response = "-ERR unknown command '" + cmd + "'\r\n"
@@ -78,16 +83,19 @@ func handleConnection(conn net.Conn, store map[string]string, expirations map[st
 	}
 }
 
-func handleSet(parts []string, store map[string]string, expirations map[string]time.Time) string {
+func handleSet(parts []string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) string {
+	mutex.Lock()
+	defer mutex.Unlock()
+
 	key := parts[4]
 	value := parts[6]
-	store[key] = value
+	(*store)[key] = value
 
 	// Check for expiration time (PX option)
 	if len(parts) >= 9 && strings.ToLower(parts[8]) == "px" {
 		if expiryMs, err := strconv.Atoi(parts[9]); err == nil {
 			expiration := time.Now().Add(time.Millisecond * time.Duration(expiryMs))
-			expirations[key] = expiration
+			(*expirations)[key] = expiration
 		} else {
 			return "-ERR value is not an integer or out of range\r\n"
 		}
@@ -96,16 +104,33 @@ func handleSet(parts []string, store map[string]string, expirations map[string]t
 	return "+OK\r\n"
 }
 
-func handleGet(key string, store map[string]string, expirations map[string]time.Time) (string, error) {
-	if expiration, ok := expirations[key]; ok && time.Now().After(expiration) {
-		delete(store, key)
-		delete(expirations, key)
+func handleGet(key string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) (string, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
+
+	if expiration, ok := (*expirations)[key]; ok && time.Now().After(expiration) {
+		delete(*store, key)
+		delete(*expirations, key)
 		return "$-1\r\n", fmt.Errorf("key expired: %s", key)
 	}
 
-	value, ok := store[key]
+	value, ok := (*store)[key]
 	if !ok {
 		return "$-1\r\n", fmt.Errorf("unknown key: %s", key)
 	}
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value), nil
+}
+
+func handleExpiration(store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
+	for {
+		time.Sleep(time.Second)
+		mutex.Lock()
+		for key, expiration := range *expirations {
+			if time.Now().After(expiration) {
+				delete(*store, key)
+				delete(*expirations, key)
+			}
+		}
+		mutex.Unlock()
+	}
 }
