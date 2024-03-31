@@ -39,7 +39,6 @@ func main() {
 		go handleConnection(conn, &store, &expirations, &mutex)
 	}
 }
-
 func handleConnection(conn net.Conn, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
@@ -54,26 +53,43 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 
 		request := strings.TrimSpace(string(buf))
 		fmt.Println("Received command:", request)
+
+		// Split the command by "\r\n"
 		parts := strings.Split(request, "\r\n")
-		cmd := strings.ToLower(parts[2])
+		// Remove the array length part (*5)
+		parts = parts[1:]
+		// Now, parts should contain ["$3", "set", "$6", "orange", "$10", "strawberry", "$2", "px", "$3", "100"]
+
+		// Extract the command and its arguments
+		cmd := strings.ToLower(parts[1])
+		args := make([]string, 0)
+		for i := 2; i < len(parts); i += 2 {
+			args = append(args, parts[i+1])
+		}
+		// Now, args should contain ["orange", "strawberry", "px", "100"]
+
 		var response string
 
 		switch cmd {
 		case "ping":
 			response = "+PONG\r\n"
 		case "echo":
-			response = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
+			if len(args) < 1 {
+				response = "-ERR wrong number of arguments for 'echo' command\r\n"
+			} else {
+				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
+			}
 		case "set":
-			if len(parts) < 7 {
+			if len(args) < 2 {
 				response = "-ERR wrong number of arguments for 'set' command\r\n"
 			} else {
-				response = handleSet(parts, store, expirations, mutex)
+				response = handleSet(args, store, expirations, mutex)
 			}
 		case "get":
-			if len(parts) < 5 {
+			if len(args) < 1 {
 				response = "-ERR wrong number of arguments for 'get' command\r\n"
 			} else {
-				response, _ = handleGet(parts[4], store, expirations, mutex)
+				response, _ = handleGet(args[0], store, expirations, mutex)
 			}
 		default:
 			response = "-ERR unknown command '" + cmd + "'\r\n"
