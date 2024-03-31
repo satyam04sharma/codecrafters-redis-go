@@ -1,78 +1,110 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	// Uncomment this block to pass the first stage
+	"io"
 	"net"
 	"os"
-	"errors"
-	"io"
 	"strings"
 )
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	fmt.Println("Starting Redis server...")
 
-	// Uncomment this block to pass the first stage
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Println("Failed to bind to port 6379:", err)
 		os.Exit(1)
 	}
-	// defer l.close()
+	defer l.Close()
 
-	// conn, err := l.Accept()
-	// Adding Support for multiple clients
 	var store = make(map[string]string)
-	for { 
+	var expirations = make(map[string]time.Time)
+
+	for {
 		conn, err := l.Accept()
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
+			fmt.Println("Error accepting connection:", err)
+			continue
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go Handle(conn, store)
+		go handleConnection(conn, store, expirations)
 	}
 }
-func Handle(conn net.Conn, store map[string]string) {
+
+func handleConnection(conn net.Conn, store map[string]string, expirations map[string]time.Time) {
 	defer conn.Close()
-	var res string
 	for {
 		buf := make([]byte, 1024)
 		_, err := conn.Read(buf[:])
-		if errors.Is(err, io.EOF) {
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				fmt.Println("Error reading from connection:", err)
+			}
 			break
 		}
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
-		}
-		fmt.Println(string(buf))
-		parts := strings.Split(string(buf), "\r\n")
+
+		request := strings.TrimSpace(string(buf))
+		fmt.Println("Received command:", request)
+		parts := strings.Split(request, "\r\n")
 		cmd := strings.ToLower(parts[2])
+		var response string
+
 		switch cmd {
-			case "ping":
-				res = "+PONG\r\n"
-			case "echo":
-				res = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
-			case "set":
-				res = handleSet(parts[4], parts[6], store)
-			case "get":
-				res, _ = handleGet(parts[4], store)
-			default:
-				res = "Unknown command: " + cmd
+		case "ping":
+			response = "+PONG\r\n"
+		case "echo":
+			response = fmt.Sprintf("$%d\r\n%s\r\n", len(parts[4]), parts[4])
+		case "set":
+			if len(parts) < 7 {
+				response = "-ERR wrong number of arguments for 'set' command\r\n"
+			} else {
+				response = handleSet(parts[4], parts[6], store)
+			}
+		case "get":
+			if len(parts) < 5 {
+				response = "-ERR wrong number of arguments for 'get' command\r\n"
+			} else {
+				response, _ = handleGet(parts[4], store)
+			}
+		default:
+			response = "-ERR unknown command '" + cmd + "'\r\n"
 		}
 
-		conn.Write([]byte(res))	}
+		conn.Write([]byte(response))
 	}
-func handleSet(k, v string, m map[string]string) string {
-	m[k] = v
+}
+
+func handleSet(parts []string, store map[string]string, expirations map[string]time.Time) string {
+	key := parts[4]
+	value := parts[6]
+	store[key] = value
+
+	// Check for expiration time (PX option)
+	if len(parts) >= 9 && strings.ToLower(parts[8]) == "px" {
+		if expiryMs, err := strconv.Atoi(parts[9]); err == nil {
+			expiration := time.Now().Add(time.Millisecond * time.Duration(expiryMs))
+			expirations[key] = expiration
+		} else {
+			return "-ERR value is not an integer or out of range\r\n"
+		}
+	}
+
 	return "+OK\r\n"
 }
-func handleGet(k string, m map[string]string) (string, error) {
-	v, ok := m[k]
-	if !ok {
-		return "$-1\r\n", fmt.Errorf("unknown key: %s", k)
+
+
+func handleGet(key string, store map[string]string, expirations map[string]time.Time) (string, error) {
+	if expiration, ok := expirations[key]; ok && time.Now().After(expiration) {
+		delete(store, key)
+		delete(expirations, key)
+		return "$-1\r\n", fmt.Errorf("key expired: %s", key)
 	}
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(v), v), nil
+
+	value, ok := store[key]
+	if !ok {
+		return "$-1\r\n", fmt.Errorf("unknown key: %s", key)
+	}
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value), nil
 }
