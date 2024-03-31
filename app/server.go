@@ -39,6 +39,7 @@ func main() {
 		go handleConnection(conn, &store, &expirations, &mutex)
 	}
 }
+
 func handleConnection(conn net.Conn, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
@@ -54,19 +55,12 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		request := strings.TrimSpace(string(buf))
 		fmt.Println("Received command:", request)
 
-		// Split the command by "\r\n"
-		parts := strings.Split(request, "\r\n")
-		// Remove the array length part (*5)
-		parts = parts[1:]
-		// Now, parts should contain ["$3", "set", "$6", "orange", "$10", "strawberry", "$2", "px", "$3", "100"]
-
-		// Extract the command and its arguments
+		parts := strings.Split(request, "\r\n")[1:] // Remove the array length part
 		cmd := strings.ToLower(parts[1])
 		args := make([]string, 0)
 		for i := 2; i < len(parts); i += 2 {
 			args = append(args, parts[i+1])
 		}
-		// Now, args should contain ["orange", "strawberry", "px", "100"]
 
 		var response string
 
@@ -74,11 +68,15 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		case "ping":
 			response = "+PONG\r\n"
 		case "echo":
+			if len(args) > 0 {
 				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
+			} else {
+				response = "$-1\r\n"
+			}
 		case "set":
 			response = handleSet(args, store, expirations, mutex)
 		case "get":
-				response, _ = handleGet(args[0], store, expirations, mutex)
+			response = handleGet(args[0], store, expirations, mutex)
 		default:
 			response = "$-1\r\n"
 		}
@@ -91,13 +89,12 @@ func handleSet(parts []string, store *map[string]string, expirations *map[string
 	mutex.Lock()
 	defer mutex.Unlock()
 
-	key := parts[4]
-	value := parts[6]
+	key := parts[0]
+	value := parts[1]
 	(*store)[key] = value
 
-	// Check for expiration time (PX option)
-	if len(parts) >= 9 && strings.ToLower(parts[8]) == "px" {
-		if expiryMs, err := strconv.Atoi(parts[9]); err == nil {
+	if len(parts) >= 3 && strings.ToLower(parts[2]) == "px" {
+		if expiryMs, err := strconv.Atoi(parts[3]); err == nil {
 			expiration := time.Now().Add(time.Millisecond * time.Duration(expiryMs))
 			(*expirations)[key] = expiration
 		} else {
@@ -108,7 +105,7 @@ func handleSet(parts []string, store *map[string]string, expirations *map[string
 	return "+OK\r\n"
 }
 
-func handleGet(key string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) (string, error) {
+func handleGet(key string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) string {
 	mutex.Lock()
 	defer mutex.Unlock()
 
@@ -122,7 +119,7 @@ func handleGet(key string, store *map[string]string, expirations *map[string]tim
 	if !ok {
 		return "$-1\r\n"
 	}
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value), nil
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(value), value)
 }
 
 func handleExpiration(store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
