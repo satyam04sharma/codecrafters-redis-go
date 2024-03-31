@@ -7,6 +7,8 @@ import (
 	"net"
 	"os"
 	"strings"
+	"time"
+	"strconv"
 )
 
 func main() {
@@ -60,13 +62,13 @@ func handleConnection(conn net.Conn, store map[string]string, expirations map[st
 			if len(parts) < 7 {
 				response = "-ERR wrong number of arguments for 'set' command\r\n"
 			} else {
-				response = handleSet(parts[4], parts[6], store)
+				response = handleSet(parts[4], parts[6], store, expirations)
 			}
 		case "get":
 			if len(parts) < 5 {
 				response = "-ERR wrong number of arguments for 'get' command\r\n"
 			} else {
-				response, _ = handleGet(parts[4], store)
+				response, _ = handleGet(parts[4], store, expirations)
 			}
 		default:
 			response = "-ERR unknown command '" + cmd + "'\r\n"
