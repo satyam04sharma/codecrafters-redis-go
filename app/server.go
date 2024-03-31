@@ -6,9 +6,9 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"time"
-	"strconv"
 )
 
 func main() {
@@ -62,7 +62,7 @@ func handleConnection(conn net.Conn, store map[string]string, expirations map[st
 			if len(parts) < 7 {
 				response = "-ERR wrong number of arguments for 'set' command\r\n"
 			} else {
-				response = handleSet(parts[4], parts[6], store, expirations)
+				response = handleSet(parts, store, expirations)
 			}
 		case "get":
 			if len(parts) < 5 {
@@ -95,7 +95,6 @@ func handleSet(parts []string, store map[string]string, expirations map[string]t
 
 	return "+OK\r\n"
 }
-
 
 func handleGet(key string, store map[string]string, expirations map[string]time.Time) (string, error) {
 	if expiration, ok := expirations[key]; ok && time.Now().After(expiration) {
