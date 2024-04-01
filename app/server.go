@@ -66,11 +66,10 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 		}
 
 		var response string
-
+		fmt.Println("Recieved command final:", cmd)
 		switch cmd {
 		case "ping":
 			response = "+PONG\r\n"
-
 		case "echo":
 				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
 		case "set":
