@@ -69,13 +69,10 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 
 		switch cmd {
 		case "ping":
-			response = "+PONG\r\n"
+			response = []byte("+PONG\r\n")
+
 		case "echo":
-			if len(args) > 0 {
-				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
-			} else {
-				response = "$-1\r\n"
-			}
+				response = []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0]))
 		case "set":
 			response = handleSet(args, store, expirations, mutex)
 		case "get":
