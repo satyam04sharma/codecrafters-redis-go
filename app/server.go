@@ -53,18 +53,18 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 
 		request := strings.TrimSpace(string(buf))
 		fmt.Println("Received command:", request)
-
-		parts := strings.Split(request, "\r\n")[1:] // Remove the array length part
-		if len(parts) < 2 {
+		parts := strings.Split(request, "\r\n")
+		if len(parts) < 3 {
 			conn.Write([]byte("$-1\r\n"))
 			continue
 		}
-		cmd := strings.ToLower(parts[1])
+		cmd := strings.ToLower(parts[2])
 		args := make([]string, 0)
-		for i := 2; i < len(parts); i += 2 {
-			args = append(args, parts[i+1])
+		for i := 3; i < len(parts); i += 2 {
+			if i+1 < len(parts) {
+				args = append(args, parts[i+1])
+			}
 		}
-
 		var response string
 		fmt.Println("Recieved command final:", cmd)
 		switch cmd {
