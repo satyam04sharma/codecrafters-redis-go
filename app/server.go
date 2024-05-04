@@ -14,8 +14,8 @@ import (
 
 func main() {
 	fmt.Println("Starting Redis server...")
-
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	args := os.Args
+	l, err := net.Listen("tcp", "0.0.0.0"+args[1])
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379:", err)
 		os.Exit(1)
