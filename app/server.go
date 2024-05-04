@@ -14,8 +14,9 @@ import (
 
 func main() {
 	fmt.Println("Starting Redis server...")
-	args := os.Args
-	l, err := net.Listen("tcp", "0.0.0.0"+args[1])
+	args := parseArgs()
+	port := getPort(args)
+	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379:", err)
 		os.Exit(1)
@@ -86,6 +87,21 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 }
 
 
+func getPort(args map[string]string) string {
+	value, ok := args["--port"]
+	if !ok {
+		return "6379"
+	} else {
+		return value
+	}
+}
+func parseArgs() map[string]string {
+	result := make(map[string]string)
+	for i := 1; i < len(os.Args); i += 2 {
+		result[os.Args[i]] = os.Args[i+1]
+	}
+	return result
+}
 
 func handleSet(parts []string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) string {
 	mutex.Lock()
