@@ -16,7 +16,7 @@ func main() {
 	fmt.Println("Starting Redis server...")
 	args := parseArgs()
 	port := getPort(args)
-	l, err := net.Listen("tcp", "0.0.0.0:"+port)
+	l, err := net.Listen("tcp", "0.0.0.0:≠"+port)
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379:", err)
 		os.Exit(1)
@@ -78,6 +78,12 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 			response = handleSet(args, store, expirations, mutex)
 		case "get":
 				response = handleGet(args[0], store, expirations, mutex)
+		case "info":
+				if (args.len()>0 && args[0].ToLower() == "replication"){
+					response = fmt.Sprintf("$%d\r\nrole:master\r\n", len(args[0]))
+				}else{
+					response = "$-1\r\n"
+				}
 		default:
 			response = "$-1\r\n"
 		}
