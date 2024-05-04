@@ -28,6 +28,7 @@ func main() {
 
 	// Start a goroutine to handle expiration
 	go handleExpiration(&store, &expirations, &mutex)
+	fmt.Println("Starting handling Expiration")
 
 	for {
 		conn, err := l.Accept()
