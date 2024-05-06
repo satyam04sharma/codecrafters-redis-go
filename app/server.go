@@ -16,6 +16,10 @@ func main() {
 	fmt.Println("Starting Redis server...")
 	args := parseArgs()
 	port := getPort(args)
+	role := "master"
+	if _, ok := args["--replicaof"]; ok {
+		role = "slave"
+	}
 	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379:", err)
@@ -38,10 +42,10 @@ func main() {
 			continue
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go handleConnection(conn, &store, &expirations, &mutex)
+		go handleConnection(conn, role,&store, &expirations, &mutex)
 	}
 }
-func handleConnection(conn net.Conn, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
+func handleConnection(conn net.Conn, role string,store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
 		buf := make([]byte, 1024)
@@ -80,7 +84,7 @@ func handleConnection(conn net.Conn, store *map[string]string, expirations *map[
 				response = handleGet(args[0], store, expirations, mutex)
 		case "info":
 				if (len(args)>0 && strings.ToLower(args[0]) == "replication"){
-					response = fmt.Sprintf("$%d\r\nrole:master\r\n", len(args[0]))
+					response = fmt.Sprintf("$%d\r\nrole:%s\r\n", len("role:"+role),role)
 				}else{
 					response = "$-1\r\n"
 				}
@@ -104,7 +108,12 @@ func getPort(args map[string]string) string {
 func parseArgs() map[string]string {
 	result := make(map[string]string)
 	for i := 1; i < len(os.Args); i += 2 {
-		result[os.Args[i]] = os.Args[i+1]
+		if os.Args[i] == "--replicaof" && i+2<len(os.Args){
+			result[os.Args[i]] = os.Args[i+1]+":"+os.Args[i+2]
+			i+=1
+		}else{
+			result[os.Args[i]] = os.Args[i+1]
+		}
 	}
 	return result
 }
