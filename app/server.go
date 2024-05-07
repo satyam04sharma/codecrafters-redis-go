@@ -16,9 +16,12 @@ func main() {
 	fmt.Println("Starting Redis server...")
 	args := parseArgs()
 	port := getPort(args)
-	role := "master"
+	var replication = make(map[string]string)
+	replication["role"] = "master"
+	replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+	replication["master_repl_offset"] = "0"
 	if _, ok := args["--replicaof"]; ok {
-		role = "slave"
+		replication["role"] = "slave"
 	}
 	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
@@ -42,10 +45,10 @@ func main() {
 			continue
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go handleConnection(conn, role,&store, &expirations, &mutex)
+		go handleConnection(conn, replication,&store, &expirations, &mutex)
 	}
 }
-func handleConnection(conn net.Conn, role string,store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
+func handleConnection(conn net.Conn, replication map[string]string,store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
 		buf := make([]byte, 1024)
@@ -84,7 +87,26 @@ func handleConnection(conn net.Conn, role string,store *map[string]string, expir
 				response = handleGet(args[0], store, expirations, mutex)
 		case "info":
 				if (len(args)>0 && strings.ToLower(args[0]) == "replication"){
-					response = fmt.Sprintf("$%d\r\nrole:%s\r\n", len("role:"+role),role)
+					// fmt.Println(replication,"value is")
+					if replication["role"] != "master"{
+						response = fmt.Sprintf("$%d\r\nrole:%s\r\n",len("role")+len(replication["role"])+1,replication["role"])
+					}else{
+					 // Constructing individual parts of the response
+					 roleStr := fmt.Sprintf("role:%s", replication["role"])
+					 replidStr := fmt.Sprintf("master_replid:%s", replication["master_replid"])
+					 offsetStr := fmt.Sprintf("master_repl_offset:%s", replication["master_repl_offset"])
+			 
+					 // Calculate lengths individually
+					 roleLen := len(roleStr)
+					 replidLen := len(replidStr)
+					 offsetLen := len(offsetStr)
+			 
+					 // Format the bulk string response with proper length calculation
+					 totalLength := roleLen + replidLen + offsetLen + 4 // +4 for CRLF after each part
+					 response = fmt.Sprintf("$%d\r\n%s\r\n%s\r\n%s\r\n", totalLength, roleStr, replidStr, offsetStr)
+							 
+					}
+						
 				}else{
 					response = "$-1\r\n"
 				}
