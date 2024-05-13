@@ -11,17 +11,28 @@ import (
 	"sync"
 	"time"
 )
-
+type Replication struct {
+    Role            string
+    MasterReplID    string
+    MasterReplOffset string
+    MasterHost      string  // Hostname or IP of the master
+    MasterPort      string  // Port of the master
+}
 func main() {
 	fmt.Println("Starting Redis server...")
 	args := parseArgs()
 	port := getPort(args)
-	var replication = make(map[string]string)
-	replication["role"] = "master"
-	replication["master_replid"] = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-	replication["master_repl_offset"] = "0"
-	if _, ok := args["--replicaof"]; ok {
-		replication["role"] = "slave"
+	replication := Replication{
+        Role: "master",
+        MasterReplID: "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb",
+        MasterReplOffset: "0",
+    }
+	if replica, ok := args["--replicaof"]; ok {
+		replication.Role = "slave" 
+		parts := strings.Split(replica, " ")
+        replication.MasterHost = parts[0]
+        replication.MasterPort = parts[1]
+		go connectToMaster(&replication)  // Connect to master and send PING
 	}
 	l, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
@@ -45,10 +56,10 @@ func main() {
 			continue
 		}
 		fmt.Println("Accepted connection:", conn.RemoteAddr().String())
-		go handleConnection(conn, replication,&store, &expirations, &mutex)
+		go handleConnection(conn, &replication,&store, &expirations, &mutex)
 	}
 }
-func handleConnection(conn net.Conn, replication map[string]string,store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
+func handleConnection(conn net.Conn,replication *Replication ,store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) {
 	defer conn.Close()
 	for {
 		buf := make([]byte, 1024)
@@ -78,7 +89,7 @@ func handleConnection(conn net.Conn, replication map[string]string,store *map[st
 		fmt.Println("Recieved command final:", cmd)
 		switch cmd {
 		case "ping":
-			response = "+PONG\r\n"
+				response = "+PONG\r\n"
 		case "echo":
 				response = fmt.Sprintf("$%d\r\n%s\r\n", len(args[0]), args[0])
 		case "set":
@@ -88,13 +99,13 @@ func handleConnection(conn net.Conn, replication map[string]string,store *map[st
 		case "info":
 				if (len(args)>0 && strings.ToLower(args[0]) == "replication"){
 					// fmt.Println(replication,"value is")
-					if replication["role"] != "master"{
-						response = fmt.Sprintf("$%d\r\nrole:%s\r\n",len("role")+len(replication["role"])+1,replication["role"])
+					if replication.Role != "master"{
+						response = fmt.Sprintf("$%d\r\nrole:%s\r\n",len("role")+len(replication.Role)+1,replication.Role)
 					}else{
 					 // Constructing individual parts of the response
-					 roleStr := fmt.Sprintf("role:%s", replication["role"])
-					 replidStr := fmt.Sprintf("master_replid:%s", replication["master_replid"])
-					 offsetStr := fmt.Sprintf("master_repl_offset:%s", replication["master_repl_offset"])
+					 roleStr := fmt.Sprintf("role:%s", replication.Role)
+					 replidStr := fmt.Sprintf("master_replid:%s", replication.MasterReplID)
+					 offsetStr := fmt.Sprintf("master_repl_offset:%s", replication.MasterReplOffset)
 			 
 					 // Calculate lengths individually
 					 roleLen := len(roleStr)
@@ -117,7 +128,30 @@ func handleConnection(conn net.Conn, replication map[string]string,store *map[st
 		conn.Write([]byte(response))
 	}
 }
+func connectToMaster(replication *Replication) error {
+    addr := replication.MasterHost + ":" + replication.MasterPort
+    conn, err := net.Dial("tcp", addr)
+    if err != nil {
+        fmt.Println("Failed to connect to master at", addr, ":", err)
+        return err
+    }
+    defer conn.Close()
 
+    // Send a PING command using simple string formatting
+    pingCommand := "*1\r\n$4\r\nPING\r\n"
+    if _, err := conn.Write([]byte(pingCommand)); err != nil {
+        return err
+    }
+
+    // Read response from master
+    response := make([]byte, 1024)
+    n, err := conn.Read(response)
+    if err != nil {
+        return err
+    }
+    fmt.Println("Received from master:", string(response[:n]))
+    return nil
+}
 
 func getPort(args map[string]string) string {
 	value, ok := args["--port"]
@@ -128,17 +162,22 @@ func getPort(args map[string]string) string {
 	}
 }
 func parseArgs() map[string]string {
-	result := make(map[string]string)
-	for i := 1; i < len(os.Args); i += 2 {
-		if os.Args[i] == "--replicaof" && i+2<len(os.Args){
-			result[os.Args[i]] = os.Args[i+1]+":"+os.Args[i+2]
-			i+=1
-		}else{
-			result[os.Args[i]] = os.Args[i+1]
-		}
-	}
-	return result
+    result := make(map[string]string)
+    i := 1
+    for i < len(os.Args) {
+        key := os.Args[i]
+        if i+1 < len(os.Args) { // Check if there is a next element
+            value := os.Args[i+1]
+            result[key] = value
+            i += 2 // Move to the next key
+        } else {
+            result[key] = "" // No value for this key, assign an empty string or handle differently
+            i += 1 // Proceed to the next item to avoid infinite loop
+        }
+    }
+    return result
 }
+
 
 func handleSet(parts []string, store *map[string]string, expirations *map[string]time.Time, mutex *sync.Mutex) string {
 	mutex.Lock()
