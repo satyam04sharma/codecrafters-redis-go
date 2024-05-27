@@ -135,7 +135,7 @@ func connectToMaster(replication *Replication) error {
         fmt.Println("Failed to connect to master at", addr, ":", err)
         return err
     }
-    defer conn.Close()
+    // defer conn.Close()
 
     // Send a PING command using simple string formatting
     pingCommand := "*1\r\n$4\r\nPING\r\n"
@@ -150,6 +150,19 @@ func connectToMaster(replication *Replication) error {
         return err
     }
     fmt.Println("Received from master:", string(response[:n]))
+	config1Command := "*3\r\n$8\r\nREPLCONF\r\n$14\r\nlistening-port\r\n$4\r\n6380\r\n"
+	if _, err := conn.Write([]byte(config1Command)); err != nil {
+        return err
+    }
+	fmt.Println("Received from master:", string(response[:n]))
+	// time.Sleep(500 * time.Millisecond) // Allow time for the master to process the command and respond
+
+	config2Command := "*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"
+	if _, err := conn.Write([]byte(config2Command)); err != nil {
+        return err
+    }
+	fmt.Println("Received from master:", string(response[:n]))
+
     return nil
 }
 
